@@ -269,7 +269,7 @@ def sediment(job):
                 # Just creating a simple cubic lattice # is fine here.
                 if job.isfile(restart_file):
                     system = hoomd.init.read_gsd(restart_file)
-                else: 
+                else:
                     xydim = 6
                     system = hoomd.init.create_lattice(hoomd.lattice.sc(
                         particle_radius * 2, type_name=polyhedra_type), n=[xydim,xydim,1])# was n=16
@@ -325,7 +325,7 @@ def sediment(job):
                 wall.add_plane_wall([0, 0, 1], [0, 0, -system.box.Lz/2])
                 # The gravitational force should be scaled such that it's on
                 # the order of a kT per particle to get the right physics.
-                gravity_field = hoomd.jit.external.user(mc=mc, code="return r_i.z + box.getL().z/2;")
+                gravity_field = hoomd.jit.external.user(mc=mc, code="return" + job.sp.g_val +  "*r_i.z + box.getL().z/2;")
                 comp = hpmc.field.external_field_composite(mc, [wall, gravity_field])
 
                 try:

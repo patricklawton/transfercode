@@ -233,7 +233,7 @@ def assemble(job):
 # @AssemblyProject.pre.never  # Disable auto running since we should always submit the mpi version
 # @AssemblyProject.pre(lambda job: job.sp.packing_fraction_depletant == 0.05)
 @AssemblyProject.post.true('sedimented')
-@directives(nranks=8)
+@directives(nranks=12)
 def sediment(job):
     """This operation simulates a sedimentation experiment by using an elongated box in the z-dimension and adding an effective gravitational potential (in the absence of depletion)."""
     import hoomd
@@ -248,8 +248,8 @@ def sediment(job):
     if hoomd.context.exec_conf is None:
         hoomd.context.initialize('--mode=cpu')
     with job:
-        with _redirect_hoomd_log(job):
-        # if True:
+        #with _redirect_hoomd_log(job):
+        if True:
             with hoomd.context.SimulationContext():
                 polyhedra_type = "Polyhedra"
                 fname_base = 'sediment'
@@ -270,9 +270,9 @@ def sediment(job):
                 if job.isfile(restart_file):
                     system = hoomd.init.read_gsd(restart_file)
                 else:
-                    xydim = 6
+                    xydim = 12
                     system = hoomd.init.create_lattice(hoomd.lattice.sc(
-                        particle_radius * 2, type_name=polyhedra_type), n=[xydim,xydim,1])# was n=16
+                        particle_radius * 2, type_name=polyhedra_type), n=[xydim,xydim,2])# was n=16
 
                 mc = hpmc.integrate.convex_polyhedron(seed=job.sp.run_num)
                 mc.shape_param.set(polyhedra_type, vertices=particle_vertices)
@@ -280,7 +280,7 @@ def sediment(job):
 
                 # Dump files
                 gsd = hoomd.dump.gsd(
-                    filename=output_file, group=hoomd.group.all(), period=10000, phase=0, overwrite=False)
+                    filename=output_file, group=hoomd.group.all(), period=1000, phase=0, overwrite=False)
                 gsd.dump_state(mc)
                 restart = hoomd.dump.gsd(filename=restart_file, group=hoomd.group.all(),
                         period=10000, phase=0, truncate = True)
@@ -297,7 +297,7 @@ def sediment(job):
 
                 # Tune if this is the first time
                 tuner_period = 500
-                tuning_steps = 10
+                tuning_steps = 4
                 if job.document.get('sediment_tuned') is None:
                     # Allow things to run by first randomizing the system and
                     # then tuning the step size. We tune before box resizing so
@@ -319,23 +319,23 @@ def sediment(job):
 
                 # Expand system, add walls, and add gravity
                 hoomd.update.box_resize(Lx=system.box.Lx, Ly = system.box.Ly,
-                                        Lz=system.box.Lz*(2*xydim), scale_particles=False,
+                                        Lz=(2*system.box.Lx), scale_particles=False,
                                         period=None)
                 wall = hpmc.field.wall(mc)
                 wall.add_plane_wall([0, 0, 1], [0, 0, -system.box.Lz/2])
                 # The gravitational force should be scaled such that it's on
                 # the order of a kT per particle to get the right physics.
-                gravity_field = hoomd.jit.external.user(mc=mc, code="return" + job.sp.g_val +  "*r_i.z + box.getL().z/2;")
+                gravity_field = hoomd.jit.external.user(mc=mc, code="return " + str(job.sp.g_val) + "*r_i.z + box.getL().z/2;")
                 comp = hpmc.field.external_field_composite(mc, [wall, gravity_field])
 
                 try:
-                    runupto_val = NUM_STEPS + tuner_period * tuning_steps
+                    runupto_val = 900000 #NUM_STEPS + tuner_period * tuning_steps
                     hoomd.run_upto(runupto_val)
                     # Dump final output
                     if hoomd.comm.get_rank() == 0:
-                        metadata = job.document.get('hoomd_meta', dict())
-                        metadata[str(datetime.datetime.now().timestamp())] = cast_json(hoomd.meta.dump_metadata())
-                        job.document['hoomd_meta'] = metadata
+                        #metadata = job.document.get('hoomd_meta', dict())
+                        #metadata[str(datetime.datetime.now().timestamp())] = hoomd.meta.dump_metadata()
+                        #job.document['hoomd_meta'] = metadata
                         job.document['sedimented'] = True
                 except hoomd.WalltimeLimitReached:
                     if hoomd.comm.get_rank() == 0:

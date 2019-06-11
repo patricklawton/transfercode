@@ -19,11 +19,12 @@ def main(args):
     project = signac.init_project('SecannaAssembly')
 
     # packing_fractions = np.linspace(0.50, 0.65, 4)
-    g_vals = np.array([1,5,9.8,12]) #np.arange(1,12,1.5)
+    z_layer_vals = np.array([1,3,5])
+    g_vals = np.array([1]) #np.array([1,5,9.8,12]) #np.arange(1,12,1.5)
     truncations = np.array([0.55]) #np.arange(0.55, 0.76, 0.02)
     run_nums=list(range(1))
 
-    sps = cartesian(g_val=g_vals, truncation=truncations, run_num=run_nums)
+    sps = cartesian(z_layer_val=z_layer_vals, g_val=g_vals, truncation=truncations, run_num=run_nums)
 
     for sp in sps:
         project.open_job(sp).init()

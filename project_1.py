@@ -228,7 +228,10 @@ def assemble(job):
                     if hoomd.comm.get_rank() == 0:
                         job.document['num_steps'] = hoomd.get_step()
 
+def on_container(func):
+    return flow.directives(executable='singularity exec software.simg python')(func)
 
+@on_container
 @AssemblyProject.operation
 # @AssemblyProject.pre.never  # Disable auto running since we should always submit the mpi version
 # @AssemblyProject.pre(lambda job: job.sp.packing_fraction_depletant == 0.05)
@@ -270,9 +273,9 @@ def sediment(job):
                 if job.isfile(restart_file):
                     system = hoomd.init.read_gsd(restart_file)
                 else:
-                    xydim = 12
+                    xydim = 16
                     system = hoomd.init.create_lattice(hoomd.lattice.sc(
-                        particle_radius * 2, type_name=polyhedra_type), n=[xydim,xydim,2])# was n=16
+                        particle_radius * 2, type_name=polyhedra_type), n=[xydim,xydim,int(job.sp.z_layer_val)])# was n=16
 
                 mc = hpmc.integrate.convex_polyhedron(seed=job.sp.run_num)
                 mc.shape_param.set(polyhedra_type, vertices=particle_vertices)
@@ -329,7 +332,7 @@ def sediment(job):
                 comp = hpmc.field.external_field_composite(mc, [wall, gravity_field])
 
                 try:
-                    runupto_val = 900000 #NUM_STEPS + tuner_period * tuning_steps
+                    runupto_val = 10000 #NUM_STEPS + tuner_period * tuning_steps
                     hoomd.run_upto(runupto_val)
                     # Dump final output
                     if hoomd.comm.get_rank() == 0:
@@ -340,7 +343,7 @@ def sediment(job):
                 except hoomd.WalltimeLimitReached:
                     if hoomd.comm.get_rank() == 0:
                         job.document['num_steps_sedimented'] = hoomd.get_step()
-
+    pass
 
 
 if __name__ == '__main__':
